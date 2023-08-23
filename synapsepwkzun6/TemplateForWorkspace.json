@@ -1,0 +1,412 @@
+{
+	"$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"workspaceName": {
+			"type": "string",
+			"metadata": "Workspace name",
+			"defaultValue": "synapsepwkzun6"
+		},
+		"Data_Warehouse_connectionString": {
+			"type": "secureString",
+			"metadata": "Secure string for 'connectionString' of 'Data_Warehouse'",
+			"defaultValue": "Integrated Security=False;Encrypt=True;Connection Timeout=30;Data Source=synapsepwkzun6.sql.azuresynapse.net;Initial Catalog=sqlpwkzun6"
+		},
+		"synapsepwkzun6-WorkspaceDefaultSqlServer_connectionString": {
+			"type": "secureString",
+			"metadata": "Secure string for 'connectionString' of 'synapsepwkzun6-WorkspaceDefaultSqlServer'",
+			"defaultValue": "Integrated Security=False;Encrypt=True;Connection Timeout=30;Data Source=tcp:synapsepwkzun6.sql.azuresynapse.net,1433;Initial Catalog=@{linkedService().DBName}"
+		},
+		"synapsepwkzun6-WorkspaceDefaultStorage_properties_typeProperties_url": {
+			"type": "string",
+			"defaultValue": "https://datalakepwkzun6.dfs.core.windows.net"
+		}
+	},
+	"variables": {
+		"workspaceId": "[concat('Microsoft.Synapse/workspaces/', parameters('workspaceName'))]"
+	},
+	"resources": [
+		{
+			"name": "[concat(parameters('workspaceName'), '/Load Product Data')]",
+			"type": "Microsoft.Synapse/workspaces/pipelines",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"activities": [
+					{
+						"name": "LoadProducts",
+						"type": "ExecuteDataFlow",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"dataflow": {
+								"referenceName": "LoadProductsData",
+								"type": "DataFlowReference",
+								"parameters": {},
+								"datasetParameters": {
+									"ProductsText": {},
+									"ProductTable": {},
+									"DimProductTable": {}
+								}
+							},
+							"staging": {
+								"linkedService": {
+									"referenceName": "synapsepwkzun6-WorkspaceDefaultStorage",
+									"type": "LinkedServiceReference"
+								},
+								"folderPath": "files/stage_products"
+							},
+							"compute": {
+								"coreCount": 8,
+								"computeType": "General"
+							},
+							"traceLevel": "Fine"
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {},
+					"cancelAfter": {}
+				},
+				"annotations": [],
+				"lastPublishTime": "2023-08-23T01:28:46Z"
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/dataflows/LoadProductsData')]",
+				"[concat(variables('workspaceId'), '/linkedServices/synapsepwkzun6-WorkspaceDefaultStorage')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/DimProduct')]",
+			"type": "Microsoft.Synapse/workspaces/datasets",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "Data_Warehouse",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "AzureSqlDWTable",
+				"schema": [
+					{
+						"name": "ProductKey",
+						"type": "int",
+						"precision": 10
+					},
+					{
+						"name": "ProductAltKey",
+						"type": "nvarchar"
+					},
+					{
+						"name": "ProductName",
+						"type": "nvarchar"
+					},
+					{
+						"name": "Color",
+						"type": "nvarchar"
+					},
+					{
+						"name": "Size",
+						"type": "nvarchar"
+					},
+					{
+						"name": "ListPrice",
+						"type": "money",
+						"precision": 19,
+						"scale": 4
+					},
+					{
+						"name": "Discontinued",
+						"type": "bit"
+					}
+				],
+				"typeProperties": {
+					"schema": "dbo",
+					"table": "DimProduct"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/linkedServices/Data_Warehouse')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/Products_Csv')]",
+			"type": "Microsoft.Synapse/workspaces/datasets",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "synapsepwkzun6-WorkspaceDefaultStorage",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "DelimitedText",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"fileName": "Product.csv",
+						"folderPath": "data",
+						"fileSystem": "files"
+					},
+					"columnDelimiter": ",",
+					"escapeChar": "\\",
+					"firstRowAsHeader": true,
+					"quoteChar": "\""
+				},
+				"schema": [
+					{
+						"name": "ProductID",
+						"type": "String"
+					},
+					{
+						"name": "ProductName",
+						"type": "String"
+					},
+					{
+						"name": "Color",
+						"type": "String"
+					},
+					{
+						"name": "Size",
+						"type": "String"
+					},
+					{
+						"name": "ListPrice",
+						"type": "String"
+					},
+					{
+						"name": "Discontinued",
+						"type": "String"
+					}
+				]
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/linkedServices/synapsepwkzun6-WorkspaceDefaultStorage')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/Data_Warehouse')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"description": "Dedicated SQL pool",
+				"annotations": [],
+				"type": "AzureSqlDW",
+				"typeProperties": {
+					"connectionString": "[parameters('Data_Warehouse_connectionString')]"
+				},
+				"connectVia": {
+					"referenceName": "AutoResolveIntegrationRuntime",
+					"type": "IntegrationRuntimeReference"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/synapsepwkzun6-WorkspaceDefaultSqlServer')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"parameters": {
+					"DBName": {
+						"type": "String"
+					}
+				},
+				"annotations": [],
+				"type": "AzureSqlDW",
+				"typeProperties": {
+					"connectionString": "[parameters('synapsepwkzun6-WorkspaceDefaultSqlServer_connectionString')]"
+				},
+				"connectVia": {
+					"referenceName": "AutoResolveIntegrationRuntime",
+					"type": "IntegrationRuntimeReference"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/synapsepwkzun6-WorkspaceDefaultStorage')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"annotations": [],
+				"type": "AzureBlobFS",
+				"typeProperties": {
+					"url": "[parameters('synapsepwkzun6-WorkspaceDefaultStorage_properties_typeProperties_url')]"
+				},
+				"connectVia": {
+					"referenceName": "AutoResolveIntegrationRuntime",
+					"type": "IntegrationRuntimeReference"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/AutoResolveIntegrationRuntime')]",
+			"type": "Microsoft.Synapse/workspaces/integrationRuntimes",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"type": "Managed",
+				"typeProperties": {
+					"computeProperties": {
+						"location": "AutoResolve",
+						"dataFlowProperties": {
+							"computeType": "General",
+							"coreCount": 8,
+							"timeToLive": 0
+						}
+					}
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/LoadProductsData')]",
+			"type": "Microsoft.Synapse/workspaces/dataflows",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"type": "MappingDataFlow",
+				"typeProperties": {
+					"sources": [
+						{
+							"dataset": {
+								"referenceName": "Products_Csv",
+								"type": "DatasetReference"
+							},
+							"name": "ProductsText",
+							"description": "Products text data"
+						},
+						{
+							"dataset": {
+								"referenceName": "DimProduct",
+								"type": "DatasetReference"
+							},
+							"name": "ProductTable",
+							"description": "Product Table"
+						}
+					],
+					"sinks": [
+						{
+							"dataset": {
+								"referenceName": "DimProduct",
+								"type": "DatasetReference"
+							},
+							"name": "DimProductTable",
+							"description": "Load DimProduct table"
+						}
+					],
+					"transformations": [
+						{
+							"name": "MatchedProducts",
+							"description": "Matched product data"
+						},
+						{
+							"name": "SetLoadAction",
+							"description": "Insert new, upsert existing"
+						}
+					],
+					"scriptLines": [
+						"source(output(",
+						"          ProductID as string,",
+						"          ProductName as string,",
+						"          Color as string,",
+						"          Size as string,",
+						"          ListPrice as string,",
+						"          Discontinued as string",
+						"     ),",
+						"     allowSchemaDrift: true,",
+						"     validateSchema: false,",
+						"     ignoreNoFilesFound: false) ~> ProductsText",
+						"source(output(",
+						"          ProductKey as integer,",
+						"          ProductAltKey as string,",
+						"          ProductName as string,",
+						"          Color as string,",
+						"          Size as string,",
+						"          ListPrice as decimal(19,4),",
+						"          Discontinued as boolean",
+						"     ),",
+						"     allowSchemaDrift: true,",
+						"     validateSchema: false,",
+						"     isolationLevel: 'READ_UNCOMMITTED',",
+						"     format: 'table',",
+						"     staged: true) ~> ProductTable",
+						"ProductsText, ProductTable lookup(ProductID == ProductAltKey,",
+						"     multiple: false,",
+						"     pickup: 'any',",
+						"     broadcast: 'auto')~> MatchedProducts",
+						"MatchedProducts alterRow(insertIf(isNull(ProductKey)),",
+						"     upsertIf(not(isNull(ProductKey)))) ~> SetLoadAction",
+						"SetLoadAction sink(allowSchemaDrift: true,",
+						"     validateSchema: false,",
+						"     input(",
+						"          ProductKey as integer,",
+						"          ProductAltKey as string,",
+						"          ProductName as string,",
+						"          Color as string,",
+						"          Size as string,",
+						"          ListPrice as decimal(19,4),",
+						"          Discontinued as boolean",
+						"     ),",
+						"     deletable:false,",
+						"     insertable:true,",
+						"     updateable:false,",
+						"     upsertable:true,",
+						"     keys:['ProductAltKey'],",
+						"     format: 'table',",
+						"     staged: true,",
+						"     allowCopyCommand: true,",
+						"     skipDuplicateMapInputs: true,",
+						"     skipDuplicateMapOutputs: true,",
+						"     errorHandlingOption: 'stopOnFirstError',",
+						"     mapColumn(",
+						"          ProductAltKey = ProductID,",
+						"          ProductName = ProductsText@ProductName,",
+						"          Color = ProductsText@Color,",
+						"          Size = ProductsText@Size,",
+						"          ListPrice = ProductsText@ListPrice,",
+						"          Discontinued = ProductsText@Discontinued",
+						"     )) ~> DimProductTable"
+					]
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/datasets/Products_Csv')]",
+				"[concat(variables('workspaceId'), '/datasets/DimProduct')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/WorkspaceSystemIdentity')]",
+			"type": "Microsoft.Synapse/workspaces/credentials",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"type": "ManagedIdentity",
+				"typeProperties": {}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/sqlpwkzun6')]",
+			"type": "Microsoft.Synapse/workspaces/sqlPools",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"collation": "SQL_Latin1_General_CP1_CI_AS",
+				"maxSizeBytes": 263882790666240,
+				"annotations": []
+			},
+			"dependsOn": [],
+			"location": "westus"
+		}
+	]
+}
